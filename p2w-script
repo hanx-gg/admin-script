@@ -45,7 +45,7 @@ makeTool("FreezeGun", Color3.fromRGB(0,255,255))
 -- GUI
 local gui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 local panel = Instance.new("Frame", gui)
-panel.Size = UDim2.new(0, 320, 0, 500)
+panel.Size = UDim2.new(0, 320, 0, 540)
 panel.Position = UDim2.new(0, 100, 0, 100)
 panel.BackgroundColor3 = Color3.fromRGB(30,30,30)
 panel.BorderSizePixel = 0
@@ -55,7 +55,7 @@ panel.Draggable = true
 -- Status Panel (FPS, Player Count, Online)
 local stats = Instance.new("TextLabel", panel)
 stats.Size = UDim2.new(0, 300, 0, 20)
-stats.Position = UDim2.new(0, 10, 0, 460)
+stats.Position = UDim2.new(0, 10, 0, 510)
 stats.BackgroundTransparency = 1
 stats.TextColor3 = Color3.fromRGB(0,255,0)
 stats.Font = Enum.Font.Code
@@ -74,8 +74,134 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- Lanjut GUI function (createLabel, createBox, createButton)
--- (...lanjutan isi tetap sama seperti sebelumnya)
+-- Helper functions
+local function createLabel(text, y)
+	local l = Instance.new("TextLabel", panel)
+	l.Text = text
+	l.Position = UDim2.new(0, 10, 0, y)
+	l.Size = UDim2.new(0, 300, 0, 20)
+	l.BackgroundTransparency = 1
+	l.TextColor3 = Color3.new(1,1,1)
+	l.Font = Enum.Font.SourceSans
+	l.TextSize = 16
+end
 
--- NOTE: Lanjutkan fungsi panel GUI seperti sebelumnya
--- WalkSpeed, JumpPower, Freeze, Tools, dll tetap jalan
+local function createBox(defaultText, y, callback)
+	local box = Instance.new("TextBox", panel)
+	box.Position = UDim2.new(0, 10, 0, y)
+	box.Size = UDim2.new(0, 300, 0, 25)
+	box.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+	box.TextColor3 = Color3.new(1,1,1)
+	box.Font = Enum.Font.SourceSans
+	box.TextSize = 16
+	box.Text = defaultText
+	box.ClearTextOnFocus = false
+	box.FocusLost:Connect(function()
+		local val = tonumber(box.Text)
+		if val then callback(val) end
+	end)
+end
+
+local function createButton(text, y, callback)
+	local b = Instance.new("TextButton", panel)
+	b.Position = UDim2.new(0, 10, 0, y)
+	b.Size = UDim2.new(0, 300, 0, 30)
+	b.BackgroundColor3 = Color3.fromRGB(70,70,70)
+	b.TextColor3 = Color3.new(1,1,1)
+	b.Font = Enum.Font.SourceSansBold
+	b.TextSize = 16
+	b.Text = text
+	b.MouseButton1Click:Connect(callback)
+end
+
+-- WalkSpeed
+createLabel("WalkSpeed:", 10)
+createBox("16", 30, function(v)
+	if LocalPlayer.Character then
+		LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = math.clamp(v, 0, 9999)
+	end
+end)
+
+-- JumpPower
+createLabel("JumpPower:", 70)
+createBox("50", 90, function(v)
+	if LocalPlayer.Character then
+		LocalPlayer.Character:FindFirstChildOfClass("Humanoid").JumpPower = math.clamp(v, 0, 9999)
+	end
+end)
+
+-- Freeze config
+local freezeDuration = 5
+local freezeCooldown = 3
+createLabel("Freeze Duration (sec):", 130)
+createBox("5", 150, function(v) freezeDuration = v end)
+createLabel("Freeze Cooldown:", 190)
+createBox("3", 210, function(v) freezeCooldown = v end)
+
+-- Kill Tool
+createButton("🔪 Dapatkan Kill Tool", 250, function()
+	RS.KillTool:Clone().Parent = LocalPlayer.Backpack
+end)
+
+-- Ban Hammer
+createButton("🔨 Dapatkan Ban Hammer", 290, function()
+	RS.BanHammer:Clone().Parent = LocalPlayer.Backpack
+end)
+
+-- Freeze Gun
+createButton("🧊 Dapatkan Freeze Gun", 330, function()
+	local tool = RS.FreezeGun:Clone()
+	tool.Parent = LocalPlayer.Backpack
+	if not tool:FindFirstChild("LocalScript") then
+		local s = Instance.new("LocalScript", tool)
+		s.Name = "LocalScript"
+		s.Source = [[
+			local Tool = script.Parent
+			local Players = game:GetService("Players")
+			local Debounce = false
+			Tool.Activated:Connect(function()
+				if Debounce then return end
+				Debounce = true
+				local player = Players.LocalPlayer
+				local mouse = player:GetMouse()
+				local targetPos = mouse.Hit.Position
+				local targetDist = 8
+				for _, p in ipairs(Players:GetPlayers()) do
+					if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+						local dist = (p.Character.HumanoidRootPart.Position - targetPos).Magnitude
+						if dist < targetDist then
+							local pos = p.Character.HumanoidRootPart.Position
+							local cage = Instance.new("Model")
+							cage.Name = "FreezeCage"
+							for x = -1,1 do for y = 0,2 do for z = -1,1 do
+								if math.abs(x)+math.abs(y)+math.abs(z) >= 2 then
+									local part = Instance.new("Part")
+									part.Size = Vector3.new(2,2,2)
+									part.Position = pos + Vector3.new(x*2,y*2,z*2)
+									part.Anchored = true
+									part.CanCollide = true
+									part.Transparency = 0.3
+									part.Material = Enum.Material.Ice
+									part.Parent = cage
+								end
+							end end end
+							cage.Parent = workspace
+							delay(]] .. tostring(freezeDuration) .. [[, function()
+								cage:Destroy()
+							end)
+						end
+					end
+				end
+				task.wait(]] .. tostring(freezeCooldown) .. [[)
+				Debounce = false
+			end)
+		]]
+	end
+end)
+
+-- Hapus Tool
+createButton("❌ Hapus Semua Tool", 470, function()
+	for _, tool in ipairs(LocalPlayer.Backpack:GetChildren()) do
+		if tool:IsA("Tool") then tool:Destroy() end
+	end
+end)
